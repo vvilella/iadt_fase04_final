@@ -8,6 +8,8 @@ from frame_loop import process_video_frames
 from context import VideoAnalysisContext
 from detectors.face_detector import FaceDetector
 from analyzers.emotion_analyzer_openai import EmotionAnalyzerOpenAI
+from analyzers.activity_analyzer import ActivityAnalyzer
+
 
 
 def parse_args():
@@ -83,8 +85,17 @@ def main():
     last_emotion = None
     last_emotion_conf = None
 
+    activity_analyzer = ActivityAnalyzer()
+
+    ACTIVITY_EVERY_N_FRAMES = 5  # barato e dá boa granularidade
+    last_activity = None
+    last_motion = None
+
     def on_frame(frame, frame_idx, time_sec):
         nonlocal last_emotion, last_emotion_conf
+        nonlocal last_activity, last_motion
+
+        raw_frame = frame.copy()
 
         # overlay base
         frame = overlay_basic(frame, frame_idx, time_sec, fps=fps, total_frames=total_frames)
@@ -145,6 +156,30 @@ def main():
                 cv2.LINE_AA,
             )
 
+            # Atividade: frame differencing (local e leve)
+            if frame_idx % ACTIVITY_EVERY_N_FRAMES == 0:
+                activity, motion = activity_analyzer.analyze(raw_frame)
+                last_activity = activity
+                last_motion = motion
+                context.register_activity(activity)
+
+            # Mostrar a última atividade
+            if last_activity:
+                txt = f"activity: {last_activity}"
+                if last_motion is not None:
+                    txt += f" | motion={last_motion:.4f}"
+                cv2.putText(
+                    frame,
+                    txt,
+                    (20, 350),
+                    cv2.FONT_HERSHEY_SIMPLEX,
+                    1.0,
+                    (0, 0, 255),
+                    3,
+                    cv2.LINE_AA,
+                )
+
+
         return frame
 
     processed_frames = process_video_frames(
@@ -168,6 +203,7 @@ def main():
             "frames_with_face_detected": context.frames_with_face,
             "total_face_detections": context.total_face_detections,
             "emotions": dict(context.emotion_counts),
+            "activities": dict(context.activity_counts),
             "anomalies_count": 0,
         },
     )

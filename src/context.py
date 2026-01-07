@@ -10,6 +10,9 @@ class VideoAnalysisContext:
         # R3 - emoções (contagem de amostras analisadas)
         self.emotion_counts = Counter()
 
+        # R4 - atividades (contagem de amostras analisadas)
+        self.activity_counts = Counter()
+
     def register_faces(self, num_faces: int):
         if num_faces > 0:
             self.frames_with_face += 1
@@ -18,3 +21,7 @@ class VideoAnalysisContext:
     def register_emotion(self, emotion: str):
         if emotion:
             self.emotion_counts[emotion] += 1
+
+    def register_activity(self, activity: str):
+        if activity:
+            self.activity_counts[activity] += 1
