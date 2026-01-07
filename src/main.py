@@ -6,6 +6,7 @@ from io_video import open_video, get_video_props, make_writer
 from report import write_report
 from frame_loop import process_video_frames
 from detectors.face_detector import FaceDetector
+from context import VideoAnalysisContext
 
 
 def parse_args():
@@ -119,6 +120,8 @@ def main():
     # ---- Detector de face ----
     face_detector = FaceDetector(min_detection_confidence=0.6)
 
+    context = VideoAnalysisContext()
+
     # ---- Callback de processamento por frame ----
     def on_frame(frame, frame_idx, time_sec):
         # Overlay básico
@@ -132,6 +135,8 @@ def main():
 
         # Detecção de faces
         faces = face_detector.detect(frame)
+        context.register_faces(len(faces))
+
         for f in faces:
             x1, y1, x2, y2 = f["x1"], f["y1"], f["x2"], f["y2"]
             score = f["score"]
@@ -176,9 +181,16 @@ def main():
             "input_video": args.video,
             "output_video": args.out_video,
             "total_frames_analyzed": processed_frames,
+
+            # R2 - Reconhecimento facial
+            "frames_with_face_detected": context.frames_with_face,
+            "total_face_detections": context.total_face_detections,
+
+            # placeholders para próximos requisitos
             "anomalies_count": 0,
         },
     )
+
 
     print("OK!")
     print(f"Frames analisados: {processed_frames}")
