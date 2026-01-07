@@ -56,6 +56,14 @@ def overlay_basic(frame, frame_idx: int, time_sec: float, fps: float, total_fram
 
 
 def main():
+    ANOMALY_COOLDOWN_FRAMES = int(fps * 1.0)  # 1s
+    last_anomaly_frame = -10**9
+
+    ANOMALY_OVERLAY_FRAMES = int(fps * 2.0)  # 2s
+    anomaly_overlay_until = -1
+    anomaly_overlay_text = None
+
+
     args = parse_args()
     Path("outputs").mkdir(exist_ok=True)
 
@@ -97,6 +105,8 @@ def main():
     def on_frame(frame, frame_idx, time_sec):
         nonlocal last_emotion, last_emotion_conf
         nonlocal last_activity, last_motion
+        nonlocal anomaly_overlay_until, anomaly_overlay_text, last_anomaly_frame
+
 
         raw_frame = frame.copy()
 
@@ -168,28 +178,33 @@ def main():
 
                 # R5 - anomalia baseada no motion_score (pico vs padrão recente)
                 anomaly = anomaly_detector.update(motion)
-                if anomaly:
+                if anomaly and (frame_idx - last_anomaly_frame) >= ANOMALY_COOLDOWN_FRAMES:
+                    last_anomaly_frame = frame_idx
+
+                    anomaly_overlay_until = frame_idx + ANOMALY_OVERLAY_FRAMES
+                    anomaly_overlay_text = f"ANOMALY: {anomaly['type']} z={anomaly['z']:.2f}"
+
                     event = {
                         "frame": frame_idx,
                         "time_sec": float(time_sec),
-                        "type": anomaly["type"],          # high_motion | low_motion
+                        "type": anomaly["type"],
                         "z": anomaly["z"],
                         "motion": float(motion),
                         "activity": activity,
                     }
                     context.register_anomaly(event)
 
-                    # overlay visual no vídeo
-                    cv2.putText(
-                        frame,
-                        f"ANOMALY: {anomaly['type']} z={anomaly['z']:.2f}",
-                        (20, 420),
-                        cv2.FONT_HERSHEY_SIMPLEX,
-                        1.0,
-                        (0, 0, 255),
-                        4,
-                        cv2.LINE_AA,
-                    )
+                    if anomaly_overlay_text and frame_idx <= anomaly_overlay_until:
+                        cv2.putText(
+                            frame,
+                            anomaly_overlay_text,
+                            (20, 420),
+                            cv2.FONT_HERSHEY_SIMPLEX,
+                            1.1,
+                            (0, 0, 255),
+                            4,
+                            cv2.LINE_AA,
+                        )
 
 
             # Mostrar a última atividade
