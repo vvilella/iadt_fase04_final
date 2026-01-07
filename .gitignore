@@ -6,3 +6,8 @@ venv/
 outputs/
 .ipynb_checkpoints/
 .DS_Store
+# Data files (videos, large assets)
+data/
+*.mp4
+*.avi
+*.mov
