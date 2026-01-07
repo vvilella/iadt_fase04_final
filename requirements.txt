@@ -1,16 +1,6 @@
-# Core
 opencv-python
 tqdm
-
-# MediaPipe (face detection)
 mediapipe==0.10.9
-
-# DeepFace (emoções)
-deepface
-
-# TensorFlow / Keras compatibility (necessário p/ DeepFace + RetinaFace)
-tensorflow==2.20.0
-tf-keras
-
-# Utils
+protobuf==4.25.3
+openai
 numpy

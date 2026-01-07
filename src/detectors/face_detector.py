@@ -3,10 +3,14 @@ import mediapipe as mp
 
 
 class FaceDetector:
-    def __init__(self, min_detection_confidence: float = 0.6):
+    def __init__(
+        self,
+        min_detection_confidence: float = 0.6,
+        model_selection: int = 1,
+    ):
         self._mp_face = mp.solutions.face_detection
         self._detector = self._mp_face.FaceDetection(
-            model_selection=0,
+            model_selection=model_selection,  # 0 = short range, 1 = long range
             min_detection_confidence=min_detection_confidence,
         )
 
@@ -14,7 +18,6 @@ class FaceDetector:
         """
         Retorna lista de faces detectadas como dict:
         {x1,y1,x2,y2,score}
-        coordenadas em pixels no frame.
         """
         h, w, _ = bgr_frame.shape
         rgb = cv2.cvtColor(bgr_frame, cv2.COLOR_BGR2RGB)
@@ -34,12 +37,14 @@ class FaceDetector:
             x2 = int((box.xmin + box.width) * w)
             y2 = int((box.ymin + box.height) * h)
 
-            # clamp
+            # clamp defensivo
             x1 = max(0, min(w - 1, x1))
             y1 = max(0, min(h - 1, y1))
             x2 = max(0, min(w - 1, x2))
             y2 = max(0, min(h - 1, y2))
 
-            faces.append({"x1": x1, "y1": y1, "x2": x2, "y2": y2, "score": score})
+            faces.append(
+                {"x1": x1, "y1": y1, "x2": x2, "y2": y2, "score": score}
+            )
 
         return faces
