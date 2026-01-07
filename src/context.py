@@ -13,6 +13,10 @@ class VideoAnalysisContext:
         # R4 - atividades (contagem de amostras analisadas)
         self.activity_counts = Counter()
 
+        # R5 - anomalias
+        self.anomalies = []  # lista de eventos
+
+
     def register_faces(self, num_faces: int):
         if num_faces > 0:
             self.frames_with_face += 1
@@ -25,3 +29,8 @@ class VideoAnalysisContext:
     def register_activity(self, activity: str):
         if activity:
             self.activity_counts[activity] += 1
+
+    def register_anomaly(self, anomaly_event: dict):
+        if anomaly_event:
+            self.anomalies.append(anomaly_event)
+

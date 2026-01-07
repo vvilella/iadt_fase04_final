@@ -9,7 +9,7 @@ from context import VideoAnalysisContext
 from detectors.face_detector import FaceDetector
 from analyzers.emotion_analyzer_openai import EmotionAnalyzerOpenAI
 from analyzers.activity_analyzer import ActivityAnalyzer
-
+from analyzers.anomaly_detector import AnomalyDetector
 
 
 def parse_args():
@@ -91,6 +91,9 @@ def main():
     last_activity = None
     last_motion = None
 
+    anomaly_detector = AnomalyDetector(window_size=60, z_thresh=3.0, enable_low=True)
+
+
     def on_frame(frame, frame_idx, time_sec):
         nonlocal last_emotion, last_emotion_conf
         nonlocal last_activity, last_motion
@@ -163,6 +166,32 @@ def main():
                 last_motion = motion
                 context.register_activity(activity)
 
+                # R5 - anomalia baseada no motion_score (pico vs padrão recente)
+                anomaly = anomaly_detector.update(motion)
+                if anomaly:
+                    event = {
+                        "frame": frame_idx,
+                        "time_sec": float(time_sec),
+                        "type": anomaly["type"],          # high_motion | low_motion
+                        "z": anomaly["z"],
+                        "motion": float(motion),
+                        "activity": activity,
+                    }
+                    context.register_anomaly(event)
+
+                    # overlay visual no vídeo
+                    cv2.putText(
+                        frame,
+                        f"ANOMALY: {anomaly['type']} z={anomaly['z']:.2f}",
+                        (20, 420),
+                        cv2.FONT_HERSHEY_SIMPLEX,
+                        1.0,
+                        (0, 0, 255),
+                        4,
+                        cv2.LINE_AA,
+                    )
+
+
             # Mostrar a última atividade
             if last_activity:
                 txt = f"activity: {last_activity}"
@@ -204,7 +233,8 @@ def main():
             "total_face_detections": context.total_face_detections,
             "emotions": dict(context.emotion_counts),
             "activities": dict(context.activity_counts),
-            "anomalies_count": 0,
+            "anomalies_count": len(context.anomalies),
+            "anomalies": context.anomalies,
         },
     )
 
