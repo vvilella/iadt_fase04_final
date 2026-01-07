@@ -1,188 +1,110 @@
-#  Tech Challenge – IADT – Fase 4  
-## Análise Inteligente de Vídeo com IA
+# Tech Challenge – IADT – Fase 4
 
-Este projeto implementa uma aplicação de **análise automática de vídeo**, com foco em **visão computacional** e **inteligência artificial**, conforme os requisitos da Fase 4 da disciplina *Inteligência Artificial para Devs (IADT)*.
+## Visão Geral
+Este projeto implementa uma aplicação de análise de vídeo baseada em visão computacional e IA, utilizando um vídeo fixo fornecido pelo challenge como entrada.
+O pipeline processa o vídeo frame a frame, gera um vídeo anotado e um relatório estruturado em JSON.
 
-A aplicação processa um **vídeo fixo fornecido pela plataforma**, gera um **vídeo anotado** e um **relatório estruturado em JSON**, contendo métricas e inferências realizadas ao longo do processamento.
-
----
-
-##  Objetivo do Projeto
-
-Construir um pipeline de análise de vídeo capaz de:
-
-- Processar um vídeo frame a frame
-- Detectar rostos
-- Analisar expressões emocionais
-- Gerar anotações visuais no vídeo
-- Produzir um relatório final consolidado
-
-A arquitetura foi pensada de forma **modular**, permitindo a evolução incremental do projeto.
+A solução foi construída de forma modular, incremental e defensável, atendendo integralmente aos requisitos R1–R6.
 
 ---
 
-##  Arquitetura Geral
-
-O pipeline atual é composto por:
-
-- **Leitura e escrita de vídeo** (OpenCV)
-- **Loop de processamento de frames** com callback (`on_frame`)
-- **Contexto de análise** para acumular métricas globais
-- **Módulos independentes** para cada tipo de análise (faces, emoções, etc.)
-- **Relatório final em JSON**
-
-```
-video -> frames -> análises -> vídeo anotado + report.json
-```
+## Entrada e Saídas
+- Entrada: vídeo fixo disponibilizado na plataforma do aluno
+- Saídas:
+  - outputs/annotated.mp4 – vídeo com overlays de análise
+  - outputs/report.json – relatório estruturado com métricas e resumo automático
 
 ---
 
-##  Estrutura do Projeto
+## Arquitetura Geral
+- Processamento frame a frame
+- Contexto central para acumular métricas
+- Analyzers e detectors desacoplados
+- Amostragem para reduzir custo computacional
+- Pipeline determinístico e reprodutível
 
-```
-iadt_fase04_final/
-├── src/
-│   ├── main.py
-│   ├── frame_loop.py
-│   ├── io_video.py
-│   ├── report.py
-│   ├── context.py
-│   ├── detectors/
-│   │   └── face_detector.py
-│   └── analyzers/
-│       └── emotion_analyzer_openai.py
-├── data/
-│   └── sample_video.mp4
-├── outputs/
-│   ├── annotated.mp4
-│   └── report.json
-├── requirements.txt
-└── README.md
-```
+Principais módulos:
+- FaceDetector (MediaPipe)
+- EmotionAnalyzerOpenAI
+- ActivityAnalyzer
+- AnomalyDetector
+- Summary Builder
 
 ---
 
-##  Funcionalidades Implementadas até o Momento
-
-###  R1 – Vídeo de Entrada Fixo
-- O vídeo é fornecido como entrada fixa conforme o enunciado.
-- O pipeline assume um único vídeo de análise por execução.
+## R1 – Vídeo fixo
+O sistema opera exclusivamente sobre o vídeo fornecido no challenge, conforme especificação do enunciado.
 
 ---
 
-###  R2 – Reconhecimento Facial
-- Implementado com **MediaPipe Face Detection** (execução local).
-- Para cada frame:
-  - Detecta rostos
-  - Desenha bounding boxes no vídeo
-- Métricas coletadas:
-  - Total de frames analisados
-  - Frames com pelo menos um rosto
-  - Total de detecções faciais
-
-Essas informações são incluídas no relatório final (`report.json`).
+## R2 – Reconhecimento Facial
+- Implementado com MediaPipe Face Detection
+- Detecção local
+- Bounding boxes e score de confiança no vídeo
+- Métricas no relatório:
+  - frames com faces detectadas
+  - total de detecções de face
 
 ---
 
-###  R3 – Análise de Emoções (Abordagem Híbrida)
+## R3 – Análise de Emoções
+### Abordagem adotada
+- Detecção de face: local
+- Classificação de emoção: OpenAI (Vision) por amostragem
 
-#### Abordagem Atual (Implementada)
-- **Detecção facial local** (MediaPipe)
-- **Classificação de emoções via OpenAI Vision API**
-- Emoção analisada **por amostragem temporal** (a cada N frames)
-- A última emoção válida é mantida como *cache* para exibição contínua no vídeo
-
-Emoções consideradas:
-- `neutral`
-- `happy`
-- `sad`
-- `angry`
-- `fear`
-- `surprise`
-- `disgust`
-
-O resultado é:
-- Exibido no vídeo anotado
-- Agregado no relatório final como contagem de ocorrências
+### Decisão técnica
+Tentativa inicial com DeepFace (100% local) apresentou conflitos entre TensorFlow, Keras, MediaPipe e Protobuf.
+Optou-se por uma solução híbrida para garantir estabilidade.
 
 ---
 
-##  Tentativa Inicial: Emoções 100% Locais (Não Utilizada)
-
-Inicialmente, foi avaliada uma abordagem totalmente local para análise de emoções utilizando a biblioteca **DeepFace** (baseada em TensorFlow/Keras).
-
-No entanto, durante a integração com o **MediaPipe**, surgiram **conflitos de dependências**, especialmente envolvendo:
-- TensorFlow / Keras
-- Versões incompatíveis de `protobuf`
-
-Esses conflitos inviabilizaram a execução estável de ambos os componentes no mesmo ambiente Python.
-
-### Decisão Arquitetural
-Optou-se por uma abordagem híbrida, que:
-- Mantém a detecção facial local
-- Remove dependências pesadas (TensorFlow/Keras)
-- Garante estabilidade do ambiente
-- Preserva a modularidade do pipeline
-
-Essa decisão foi tomada visando **robustez, clareza e prazo**, sem comprometer os objetivos do trabalho.
+## R4 – Detecção e Categorização de Atividades
+- Baseada em movimento entre frames (motion score)
+- Categorias:
+  - still
+  - talking
+  - gesturing
+- Análise realizada sempre sobre frame limpo
 
 ---
 
-##  Exemplo de Relatório Gerado
+## R5 – Detecção de Anomalias
+### Definição
+Anomalia é um desvio estatístico do padrão recente de movimento.
 
-```json
-{
-  "total_frames_analyzed": 3326,
-  "frames_with_face_detected": 2033,
-  "total_face_detections": 2449,
-  "emotions": {
-    "neutral": 19,
-    "happy": 7,
-    "surprise": 5,
-    "sad": 2,
-    "disgust": 1,
-    "fear": 1
-  },
-  "anomalies_count": 0
-}
-```
+### Implementação
+- Janela deslizante
+- Z-score
+- Cooldown
+- Persistência visual no vídeo
 
 ---
 
-## ⚙️ Requisitos e Execução
+## R6 – Resumo Automático
+Resumo textual local contendo:
+- duração do vídeo
+- atividades predominantes
+- emoções predominantes
+- quantidade e exemplos de anomalias
 
-### Dependências principais
-- Python 3.11
-- OpenCV
-- MediaPipe
-- OpenAI SDK
+---
 
-### Execução
-```bash
+## Execução
 python src/main.py --video data/sample_video.mp4
-```
-
-> ⚠️ Para R3, é necessário definir a variável de ambiente `OPENAI_API_KEY`.
 
 ---
 
-##  Limitações Conhecidas e Trabalhos Futuros
-
-- A análise de emoções depende atualmente de uma API externa (OpenAI).
-- Como melhoria futura (bônus), o módulo de emoções pode ser substituído por um classificador local baseado em CNNs pré-treinadas (ex: FER2013 ou AffectNet).
-- A arquitetura foi projetada para permitir essa substituição sem impacto nos demais módulos.
-
----
-
-##  Próximos Passos Planejados
-
-- **R4 – Detecção e categorização de atividades**
-- **R5 – Detecção de anomalias**
-- **R6 – Geração de resumo automático do vídeo**
+## Estrutura do Projeto
+src/
+  analyzers/
+  detectors/
+  summary.py
+  context.py
+  main.py
 
 ---
 
-## ️ Autor
-
-Victor Nardi Vilella  
-Pós-Graduação – IA para Devs (FIAP)
+## Possíveis Extensões
+- Emoções 100% locais
+- Detecção explícita de mudança de cena
+- Agrupamento temporal de anomalias
