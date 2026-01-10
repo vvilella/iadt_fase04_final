@@ -1,6 +1,5 @@
-opencv-python
-tqdm
+numpy==2.2.1
+opencv-python==4.10.0.84
+tqdm==4.67.1
 mediapipe==0.10.9
-protobuf==4.25.3
-openai
-numpy
+openai==1.59.7
