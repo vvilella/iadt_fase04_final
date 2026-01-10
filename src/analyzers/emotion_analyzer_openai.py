@@ -1,71 +1,77 @@
-import base64
+import os
 import json
+import base64
 import cv2
 from openai import OpenAI
 
 
 class EmotionAnalyzerOpenAI:
-    """
-    Classifica emoção facial em labels simples:
-    neutral, happy, sad, angry, fear, surprise, disgust
-
-    Retorna (emotion, confidence_0_1).
-    """
-
-    def __init__(self, model: str = "gpt-4o-mini"):
-        self.client = OpenAI()
+    def __init__(self, model="gpt-4o-mini"):
         self.model = model
-
-    @staticmethod
-    def _bgr_to_data_url(face_bgr) -> str:
-        ok, buf = cv2.imencode(".jpg", face_bgr, [int(cv2.IMWRITE_JPEG_QUALITY), 85])
-        if not ok:
-            raise RuntimeError("Falha ao codificar imagem para JPEG.")
-        b64 = base64.b64encode(buf.tobytes()).decode("utf-8")
-        return f"data:image/jpeg;base64,{b64}"
+        api_key = os.getenv("OPENAI_API_KEY")
+        self.client = OpenAI(api_key=api_key) if api_key else None
 
     def analyze(self, face_bgr):
-        """
-        Retorna (emotion, confidence_0_1) ou (None, None).
-        """
-        try:
-            data_url = self._bgr_to_data_url(face_bgr)
+        if self.client is None:
+            return None, None
 
-            instruction = (
-                "Você é um classificador de emoção facial.\n"
-                "Retorne APENAS um JSON válido (sem texto extra) no formato:\n"
-                '{"emotion":"<label>","confidence":<float_0_1>}\n'
-                "Labels permitidos: neutral, happy, sad, angry, fear, surprise, disgust.\n"
-                "Se não for possível inferir, use neutral com baixa confiança (ex: 0.2)."
+        if face_bgr is None or face_bgr.size == 0:
+            return None, None
+
+        try:
+            ok, buf = cv2.imencode(".jpg", face_bgr)
+            if not ok:
+                return None, None
+
+            b64 = base64.b64encode(buf.tobytes()).decode("utf-8")
+
+            prompt = (
+                "Classifique a emoção facial predominante em UMA das categorias: "
+                "neutral, happy, surprise, sad, fear, disgust. "
+                "Responda apenas com JSON no formato: "
+                "{\"emotion\":\"<label>\",\"confidence\":0.0}"
             )
 
-            resp = self.client.responses.create(
+            resp = self.client.chat.completions.create(
                 model=self.model,
-                input=[
+                messages=[
                     {
                         "role": "user",
                         "content": [
-                            {"type": "input_text", "text": instruction},
-                            {"type": "input_image", "image_url": data_url},
+                            {"type": "text", "text": prompt},
+                            {
+                                "type": "image_url",
+                                "image_url": {
+                                    "url": f"data:image/jpeg;base64,{b64}"
+                                },
+                            },
                         ],
                     }
                 ],
             )
 
-            text = (resp.output_text or "").strip()
-            data = json.loads(text)
+            text = (resp.choices[0].message.content or "").strip()
+
+            if not text:
+                return None, None
+
+            # Tenta JSON puro primeiro
+            try:
+                data = json.loads(text)
+            except Exception:
+                # Fallback: extrai o primeiro objeto JSON {...} encontrado no texto
+                import re
+                m = re.search(r"\{.*\}", text, flags=re.DOTALL)
+                if not m:
+                    print("[WARN] OpenAI returned non-JSON:", text[:200])
+                    return None, None
+                data = json.loads(m.group(0))
 
             emotion = data.get("emotion")
             conf = data.get("confidence")
-
-            if emotion is None:
-                return None, None
-
-            conf = float(conf) if conf is not None else None
-            # clamp defensivo
-            if conf is not None:
-                conf = max(0.0, min(1.0, conf))
-
             return emotion, conf
-        except Exception:
+
+
+        except Exception as e:
+            print("[ERROR] EmotionAnalyzerOpenAI:", e)
             return None, None
